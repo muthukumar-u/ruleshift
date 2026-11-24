@@ -1,0 +1,45 @@
+name: ruleshift
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: ruleshift
+      POSTGRES_USER: ruleshift
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ruleshift-local-dev}
+      READER_PASSWORD: ${READER_PASSWORD:-ruleshift-reader-local}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./monitoring/postgres/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+      - ./monitoring/postgres/schema.sql:/schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ruleshift -d ruleshift"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  grafana:
+    image: grafana/grafana:13.2.2
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-ruleshift-local-dev}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+      GF_PLUGINS_PREINSTALL_DISABLED: "true"
+      GF_SECURITY_DISABLE_GRAVATAR: "true"
+      READER_PASSWORD: ${READER_PASSWORD:-ruleshift-reader-local}
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/ruleshift.json
+    ports:
+      - "127.0.0.1:${GRAFANA_PORT:-3018}:3000"
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  postgres-data:
+  grafana-data:

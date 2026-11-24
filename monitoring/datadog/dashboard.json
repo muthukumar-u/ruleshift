@@ -1,0 +1,367 @@
+{
+  "title": "RuleShift \u2014 Controlled Generalization Lab",
+  "layout_type": "ordered",
+  "description": "Run-scoped robustness diagnostics. Configure log measures before using analytics panels.",
+  "template_variables": [
+    {
+      "name": "run_id",
+      "prefix": "@run_id",
+      "default": "select_one_run"
+    },
+    {
+      "name": "evidence",
+      "prefix": "evidence",
+      "default": "simulated"
+    }
+  ],
+  "widgets": [
+    {
+      "definition": {
+        "type": "note",
+        "background_color": "gray",
+        "font_size": "14",
+        "content": "# RuleShift \u2014 does the rule survive?\nSelect ONE run_id and its evidence mode. Simulated controls are not LLM results. Empty panels can mean no matching indexed logs or missing numeric measures. Do not compare blended runs.\nThis tests task robustness, not philosophical understanding or training-data membership. Exact prompts stay local unless --include-content is used."
+      }
+    },
+    {
+      "definition": {
+        "type": "query_value",
+        "title": "Correct / all attempts",
+        "autoscale": false,
+        "precision": 1,
+        "requests": [
+          {
+            "queries": [
+              {
+                "name": "a",
+                "data_source": "logs",
+                "indexes": [
+                  "*"
+                ],
+                "search": {
+                  "query": "service:ruleshift $run_id $evidence @event_type:attempt"
+                },
+                "compute": {
+                  "aggregation": "avg",
+                  "metric": "@correct"
+                }
+              }
+            ],
+            "formulas": [
+              {
+                "formula": "100 * a"
+              }
+            ],
+            "response_format": "scalar"
+          }
+        ],
+        "custom_unit": "%"
+      }
+    },
+    {
+      "definition": {
+        "type": "query_value",
+        "title": "Valid response coverage",
+        "autoscale": false,
+        "precision": 1,
+        "requests": [
+          {
+            "queries": [
+              {
+                "name": "a",
+                "data_source": "logs",
+                "indexes": [
+                  "*"
+                ],
+                "search": {
+                  "query": "service:ruleshift $run_id $evidence @event_type:attempt"
+                },
+                "compute": {
+                  "aggregation": "avg",
+                  "metric": "@valid"
+                }
+              }
+            ],
+            "formulas": [
+              {
+                "formula": "100 * a"
+              }
+            ],
+            "response_format": "scalar"
+          }
+        ],
+        "custom_unit": "%"
+      }
+    },
+    {
+      "definition": {
+        "type": "query_value",
+        "title": "Recorded attempts",
+        "autoscale": false,
+        "precision": 1,
+        "requests": [
+          {
+            "queries": [
+              {
+                "name": "a",
+                "data_source": "logs",
+                "indexes": [
+                  "*"
+                ],
+                "search": {
+                  "query": "service:ruleshift $run_id $evidence @event_type:attempt"
+                },
+                "compute": {
+                  "aggregation": "count"
+                }
+              }
+            ],
+            "formulas": [
+              {
+                "formula": "a"
+              }
+            ],
+            "response_format": "scalar"
+          }
+        ]
+      }
+    },
+    {
+      "definition": {
+        "type": "query_value",
+        "title": "P95 request latency",
+        "autoscale": false,
+        "precision": 1,
+        "requests": [
+          {
+            "queries": [
+              {
+                "name": "a",
+                "data_source": "logs",
+                "indexes": [
+                  "*"
+                ],
+                "search": {
+                  "query": "service:ruleshift $run_id $evidence @event_type:attempt"
+                },
+                "compute": {
+                  "aggregation": "pc95",
+                  "metric": "@latency_ms"
+                }
+              }
+            ],
+            "formulas": [
+              {
+                "formula": "a"
+              }
+            ],
+            "response_format": "scalar"
+          }
+        ],
+        "custom_unit": "ms"
+      }
+    },
+    {
+      "definition": {
+        "type": "query_table",
+        "title": "Accuracy and coverage by variation",
+        "requests": [
+          {
+            "queries": [
+              {
+                "name": "a",
+                "data_source": "logs",
+                "indexes": [
+                  "*"
+                ],
+                "search": {
+                  "query": "service:ruleshift $run_id $evidence @event_type:attempt"
+                },
+                "compute": {
+                  "aggregation": "avg",
+                  "metric": "@correct"
+                },
+                "group_by": [
+                  {
+                    "facet": "@variant",
+                    "limit": 10,
+                    "sort": {
+                      "aggregation": "count",
+                      "order": "desc"
+                    }
+                  }
+                ]
+              },
+              {
+                "name": "b",
+                "data_source": "logs",
+                "indexes": [
+                  "*"
+                ],
+                "search": {
+                  "query": "service:ruleshift $run_id $evidence @event_type:attempt"
+                },
+                "compute": {
+                  "aggregation": "avg",
+                  "metric": "@valid"
+                },
+                "group_by": [
+                  {
+                    "facet": "@variant",
+                    "limit": 10,
+                    "sort": {
+                      "aggregation": "count",
+                      "order": "desc"
+                    }
+                  }
+                ]
+              },
+              {
+                "name": "c",
+                "data_source": "logs",
+                "indexes": [
+                  "*"
+                ],
+                "search": {
+                  "query": "service:ruleshift $run_id $evidence @event_type:attempt"
+                },
+                "compute": {
+                  "aggregation": "count"
+                },
+                "group_by": [
+                  {
+                    "facet": "@variant",
+                    "limit": 10,
+                    "sort": {
+                      "aggregation": "count",
+                      "order": "desc"
+                    }
+                  }
+                ]
+              }
+            ],
+            "formulas": [
+              {
+                "formula": "100 * a",
+                "alias": "E2E accuracy %"
+              },
+              {
+                "formula": "100 * b",
+                "alias": "Valid %"
+              },
+              {
+                "formula": "c",
+                "alias": "Attempts"
+              }
+            ],
+            "response_format": "scalar"
+          }
+        ]
+      }
+    },
+    {
+      "definition": {
+        "type": "query_value",
+        "title": "Correct baseline \u2192 wrong variant",
+        "autoscale": false,
+        "precision": 1,
+        "requests": [
+          {
+            "queries": [
+              {
+                "name": "a",
+                "data_source": "logs",
+                "indexes": [
+                  "*"
+                ],
+                "search": {
+                  "query": "service:ruleshift $run_id $evidence @event_type:attempt"
+                },
+                "compute": {
+                  "aggregation": "sum",
+                  "metric": "@paired_regression"
+                }
+              }
+            ],
+            "formulas": [
+              {
+                "formula": "a"
+              }
+            ],
+            "response_format": "scalar"
+          }
+        ]
+      }
+    },
+    {
+      "definition": {
+        "type": "query_value",
+        "title": "Answer changed on invariant input",
+        "autoscale": false,
+        "precision": 1,
+        "requests": [
+          {
+            "queries": [
+              {
+                "name": "a",
+                "data_source": "logs",
+                "indexes": [
+                  "*"
+                ],
+                "search": {
+                  "query": "service:ruleshift $run_id $evidence @event_type:attempt"
+                },
+                "compute": {
+                  "aggregation": "sum",
+                  "metric": "@invariance_violation"
+                }
+              }
+            ],
+            "formulas": [
+              {
+                "formula": "a"
+              }
+            ],
+            "response_format": "scalar"
+          }
+        ]
+      }
+    },
+    {
+      "definition": {
+        "type": "log_stream",
+        "title": "Failing attempts \u2014 click to inspect",
+        "query": "service:ruleshift $run_id $evidence @event_type:attempt @correct:0",
+        "indexes": [
+          "*"
+        ],
+        "columns": [
+          "@case_id",
+          "@variant",
+          "@status",
+          "@expected",
+          "@observed",
+          "@latency_ms"
+        ],
+        "show_date_column": true,
+        "show_message_column": true
+      }
+    },
+    {
+      "definition": {
+        "type": "log_stream",
+        "title": "Run summary / uncertainty / protocol",
+        "query": "service:ruleshift $run_id $evidence @event_type:run_summary",
+        "indexes": [
+          "*"
+        ],
+        "columns": [
+          "@run_id",
+          "@model",
+          "@dataset_hash"
+        ],
+        "show_message_column": true
+      }
+    }
+  ]
+}

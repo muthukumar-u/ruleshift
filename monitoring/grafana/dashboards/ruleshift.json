@@ -1,0 +1,819 @@
+{
+  "uid": "ruleshift",
+  "title": "RuleShift \u2014 Does the rule survive?",
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": false,
+  "tags": [
+    "ruleshift",
+    "evaluation",
+    "gsm-symbolic"
+  ],
+  "timezone": "browser",
+  "refresh": "10s",
+  "time": {
+    "from": "now-7d",
+    "to": "now"
+  },
+  "description": "Run-scoped evaluation; the global time picker does not filter the selected experiment.",
+  "templating": {
+    "list": [
+      {
+        "name": "mode",
+        "label": "Evidence",
+        "type": "custom",
+        "query": "simulated,real",
+        "current": {
+          "text": "simulated",
+          "value": "simulated"
+        },
+        "options": [
+          {
+            "text": "simulated",
+            "value": "simulated",
+            "selected": true
+          },
+          {
+            "text": "real",
+            "value": "real",
+            "selected": false
+          }
+        ]
+      },
+      {
+        "name": "run",
+        "label": "Experiment",
+        "type": "query",
+        "datasource": {
+          "type": "grafana-postgresql-datasource",
+          "uid": "ruleshift-postgres"
+        },
+        "query": "SELECT model || ' / ' || substr(created_at,1,19) || ' / ' || substr(run_id,1,8) AS __text, run_id AS __value FROM runs WHERE simulated=CASE WHEN '${mode}'='simulated' THEN 1 ELSE 0 END ORDER BY created_at DESC",
+        "refresh": 1,
+        "sort": 0,
+        "multi": false,
+        "includeAll": false,
+        "options": []
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "RuleShift / Controlled generalization lab",
+      "type": "text",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 4
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "**Evidence mode: ${mode}.** SIMULATED runs are scripted controls, not LLM results. Switch to real only after evaluating a model.\n\nInspired by [GSM-Symbolic](https://arxiv.org/abs/2410.05229). Measures robustness on selected tasks; does not prove memorization or understanding. Numbers, rules and boundaries require recomputing the answer; names and irrelevant details preserve it. Select a run above, then inspect its paired failures below. Refresh after a new run."
+      }
+    },
+    {
+      "id": 2,
+      "title": "Correct / all attempted",
+      "type": "stat",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ruleshift-postgres"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 4,
+        "w": 6,
+        "h": 4
+      },
+      "description": "End-to-end accuracy: provider and parse errors count as failures.",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ruleshift-postgres"
+          },
+          "rawSql": "SELECT 100.0*avg(correct) AS accuracy FROM results r WHERE r.run_id=${run:sqlstring}",
+          "format": "table",
+          "editorMode": "code",
+          "rawQuery": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {},
+          "unit": "percent",
+          "decimals": 1,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto"
+      }
+    },
+    {
+      "id": 3,
+      "title": "Valid response coverage",
+      "type": "stat",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ruleshift-postgres"
+      },
+      "gridPos": {
+        "x": 6,
+        "y": 4,
+        "w": 6,
+        "h": 4
+      },
+      "description": "",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ruleshift-postgres"
+          },
+          "rawSql": "SELECT 100.0*avg(CASE WHEN status='ok' THEN 1 ELSE 0 END) AS coverage FROM results r WHERE r.run_id=${run:sqlstring}",
+          "format": "table",
+          "editorMode": "code",
+          "rawQuery": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {},
+          "unit": "percent",
+          "decimals": 1,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 80
+              },
+              {
+                "color": "green",
+                "value": 99
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto"
+      }
+    },
+    {
+      "id": 4,
+      "title": "Recorded attempts",
+      "type": "stat",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ruleshift-postgres"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 4,
+        "w": 6,
+        "h": 4
+      },
+      "description": "",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ruleshift-postgres"
+          },
+          "rawSql": "SELECT count(*) AS attempts FROM results r WHERE r.run_id=${run:sqlstring}",
+          "format": "table",
+          "editorMode": "code",
+          "rawQuery": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {},
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto"
+      }
+    },
+    {
+      "id": 5,
+      "title": "Parsing / provider failures",
+      "type": "stat",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ruleshift-postgres"
+      },
+      "gridPos": {
+        "x": 18,
+        "y": 4,
+        "w": 6,
+        "h": 4
+      },
+      "description": "",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ruleshift-postgres"
+          },
+          "rawSql": "SELECT count(*) AS failures FROM results r WHERE r.run_id=${run:sqlstring} AND status<>'ok'",
+          "format": "table",
+          "editorMode": "code",
+          "rawQuery": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {},
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto"
+      }
+    },
+    {
+      "id": 6,
+      "title": "Where does performance break?",
+      "type": "barchart",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ruleshift-postgres"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 8,
+        "w": 14,
+        "h": 9
+      },
+      "description": "Interpret valid-only accuracy together with coverage; missing responses must not disappear.",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ruleshift-postgres"
+          },
+          "rawSql": "\nSELECT variant,\n round(100.0*avg(correct),1) AS \"All attempts\",\n round(100.0*sum(correct)/NULLIF(count(*) FILTER (WHERE status='ok'),0),1) AS \"Valid responses only\"\nFROM results r WHERE r.run_id=${run:sqlstring} GROUP BY variant ORDER BY variant\n",
+          "format": "table",
+          "editorMode": "code",
+          "rawQuery": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {},
+          "unit": "percent",
+          "decimals": 1
+        },
+        "overrides": []
+      },
+      "options": {
+        "orientation": "vertical",
+        "showValue": "always",
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 7,
+      "title": "Uncertainty / 95% cluster bootstrap",
+      "type": "table",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ruleshift-postgres"
+      },
+      "gridPos": {
+        "x": 14,
+        "y": 8,
+        "w": 10,
+        "h": 9
+      },
+      "description": "Resamples template+seed groups (1000 draws), keeping repeats together. Conditional on the selected templates, not all tasks. Null with fewer than two clusters. Tiny demo data and perfect controls can yield degenerate intervals.",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ruleshift-postgres"
+          },
+          "rawSql": "\nSELECT variant, correct::text || '/' || attempts::text AS \"Correct / total\",\n round((100.0*ci_low)::numeric,1) AS \"CI low %\",\n round((100.0*ci_high)::numeric,1) AS \"CI high %\"\nFROM run_summaries WHERE run_id=${run:sqlstring} ORDER BY variant\n",
+          "format": "table",
+          "editorMode": "code",
+          "rawQuery": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "cellOptions": {
+              "type": "auto"
+            },
+            "filterable": true,
+            "minWidth": 65,
+            "inspect": true,
+            "wrapHeaderText": true
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "md"
+      }
+    },
+    {
+      "id": 8,
+      "title": "Paired changes / same template, seed and repeat",
+      "type": "table",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ruleshift-postgres"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 17,
+        "w": 14,
+        "h": 8
+      },
+      "description": "Only valid pairs; format and transport failures are shown separately. An invariant violation can also occur when both answers are wrong. Correct \u2192 wrong is a paired behavioral failure, not evidence of training-data membership.",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ruleshift-postgres"
+          },
+          "rawSql": "\nSELECT r.variant,\n count(*) AS \"Valid pairs\",\n count(*) FILTER (WHERE b.correct=1) AS \"Baseline correct\",\n count(*) FILTER (WHERE b.correct=1 AND r.correct=0) AS \"Correct \u2192 wrong\",\n count(*) FILTER (WHERE b.correct=1 AND r.correct=1) AS \"Correct retained\",\n count(*) FILTER (WHERE r.relation='invariant' AND r.observed::jsonb<>b.observed::jsonb) AS \"Invariant violations\"\nFROM results r JOIN results b ON r.run_id=b.run_id AND r.template_id=b.template_id\n AND r.seed=b.seed AND r.repeat_index=b.repeat_index AND b.variant='baseline'\nWHERE r.run_id=${run:sqlstring} AND r.variant<>'baseline' AND r.status='ok' AND b.status='ok'\nGROUP BY r.variant ORDER BY r.variant\n",
+          "format": "table",
+          "editorMode": "code",
+          "rawQuery": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "cellOptions": {
+              "type": "auto"
+            },
+            "filterable": true,
+            "minWidth": 65,
+            "inspect": true,
+            "wrapHeaderText": true
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "md"
+      }
+    },
+    {
+      "id": 9,
+      "title": "Latency by variation",
+      "type": "barchart",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ruleshift-postgres"
+      },
+      "gridPos": {
+        "x": 14,
+        "y": 17,
+        "w": 10,
+        "h": 8
+      },
+      "description": "Measured wall-clock request latency; simulated controls have no model-inference latency.",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ruleshift-postgres"
+          },
+          "rawSql": "\nSELECT variant, round(avg(latency_ms)::numeric,2) AS \"Mean ms\",\n round(percentile_cont(.95) WITHIN GROUP (ORDER BY latency_ms)::numeric,2) AS \"P95 ms\"\nFROM results r WHERE r.run_id=${run:sqlstring} GROUP BY variant ORDER BY variant\n",
+          "format": "table",
+          "editorMode": "code",
+          "rawQuery": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {},
+          "unit": "ms",
+          "decimals": 1
+        },
+        "overrides": []
+      },
+      "options": {
+        "orientation": "vertical",
+        "showValue": "always",
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 10,
+      "title": "Failure microscope / inspect a cell to read the full value",
+      "type": "table",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ruleshift-postgres"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 25,
+        "w": 24,
+        "h": 12
+      },
+      "description": "Wrong answers, parsing errors and transport errors are kept distinct. The limit is 500 rows; the JSON and CSV exports contain every attempt.",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ruleshift-postgres"
+          },
+          "rawSql": "\nSELECT r.case_id, r.expected AS \"Expected\", r.observed AS \"Observed\", r.status,\n r.prompt AS \"Changed question\", b.prompt AS \"Baseline question\",\n b.observed AS \"Baseline answer\", r.raw_response AS \"Raw response\", r.repeat_index,\n round(r.latency_ms::numeric,2) AS \"Latency ms\"\nFROM results r LEFT JOIN results b ON r.run_id=b.run_id AND r.template_id=b.template_id\n AND r.seed=b.seed AND r.repeat_index=b.repeat_index AND b.variant='baseline'\nWHERE r.run_id=${run:sqlstring} AND r.correct=0 ORDER BY r.variant,r.case_id,r.repeat_index LIMIT 500\n",
+          "format": "table",
+          "editorMode": "code",
+          "rawQuery": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "cellOptions": {
+              "type": "auto"
+            },
+            "filterable": true,
+            "minWidth": 65,
+            "inspect": true,
+            "wrapHeaderText": true
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "case_id"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 230
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Expected"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 85
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Observed"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 85
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "status"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 110
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Changed question"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 320
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Baseline question"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 320
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Raw response"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 180
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "md"
+      }
+    },
+    {
+      "id": 11,
+      "title": "Matched experiment comparison / latest run per provider + model",
+      "type": "table",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ruleshift-postgres"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 37,
+        "w": 24,
+        "h": 7
+      },
+      "description": "Requires the identical dataset hash and recorded settings (except endpoint, provider and model). Incomplete runs are excluded. Endpoint hardware may differ: latency comparison is not controlled. API aliases can change; prefer versioned model IDs.",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ruleshift-postgres"
+          },
+          "rawSql": "\nWITH chosen AS (SELECT * FROM runs WHERE run_id=${run:sqlstring}),\neligible AS (\n SELECT a.* FROM runs a CROSS JOIN chosen c\n WHERE a.dataset_hash=c.dataset_hash AND a.simulated=c.simulated\n AND (a.config::jsonb - 'model' - 'base_url' - 'provider') =\n     (c.config::jsonb - 'model' - 'base_url' - 'provider')\n AND (SELECT count(*) FROM results z WHERE z.run_id=a.run_id) =\n     (a.config::jsonb->>'cases')::integer * (a.config::jsonb->>'repeats')::integer\n), latest AS (\n SELECT DISTINCT ON (provider,model) * FROM eligible ORDER BY provider,model,created_at DESC\n)\nSELECT a.model, a.provider, count(*) AS attempts,\n round(100.0*avg(r.correct),1) AS \"E2E accuracy %\",\n count(*) FILTER (WHERE r.status='provider_error') AS \"Provider errors\",\n count(*) FILTER (WHERE r.status='parse_error') AS \"Parse errors\",\n a.run_id\nFROM latest a JOIN results r ON r.run_id=a.run_id\nGROUP BY a.model,a.provider,a.run_id ORDER BY a.model\n",
+          "format": "table",
+          "editorMode": "code",
+          "rawQuery": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "cellOptions": {
+              "type": "auto"
+            },
+            "filterable": true,
+            "minWidth": 65,
+            "inspect": true,
+            "wrapHeaderText": true
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "md"
+      }
+    },
+    {
+      "id": 12,
+      "title": "Run provenance",
+      "type": "table",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ruleshift-postgres"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 44,
+        "w": 24,
+        "h": 6
+      },
+      "description": "",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ruleshift-postgres"
+          },
+          "rawSql": "\nSELECT a.run_id, a.created_at, a.model, a.provider,\n CASE WHEN a.simulated=1 THEN 'SIMULATED CONTROL' ELSE 'REAL MODEL CALLS' END AS evidence,\n a.dataset_hash, a.config,\n (a.config::jsonb->>'cases')::integer * (a.config::jsonb->>'repeats')::integer AS \"Planned attempts\",\n (SELECT count(*) FROM results x WHERE x.run_id=a.run_id) AS \"Recorded attempts\"\nFROM runs a WHERE a.run_id=${run:sqlstring}\n",
+          "format": "table",
+          "editorMode": "code",
+          "rawQuery": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "cellOptions": {
+              "type": "auto"
+            },
+            "filterable": true,
+            "minWidth": 65,
+            "inspect": true,
+            "wrapHeaderText": true
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "md"
+      }
+    },
+    {
+      "id": 13,
+      "title": "Same-prompt baseline variability",
+      "type": "table",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ruleshift-postgres"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 50,
+        "w": 12,
+        "h": 6
+      },
+      "description": "Compare transformation failures with ordinary sampling variability. With one repeat no rate is estimated. Temperature zero is not a determinism guarantee.",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ruleshift-postgres"
+          },
+          "rawSql": "\nWITH groups AS (\n SELECT template_id,seed,count(*) AS valid_repeats,count(DISTINCT observed::jsonb) AS answers\n FROM results r WHERE r.run_id=${run:sqlstring} AND variant='baseline' AND status='ok'\n GROUP BY template_id,seed HAVING count(*)>=2\n)\nSELECT count(*) AS \"Groups with 2+ valid repeats\",\n count(*) FILTER (WHERE answers>1) AS \"Groups with changing answers\",\n round(100.0*count(*) FILTER (WHERE answers>1)/NULLIF(count(*),0),1) AS \"Disagreement %\"\nFROM groups\n",
+          "format": "table",
+          "editorMode": "code",
+          "rawQuery": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "cellOptions": {
+              "type": "auto"
+            },
+            "filterable": true,
+            "minWidth": 65,
+            "inspect": true,
+            "wrapHeaderText": true
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "md"
+      }
+    },
+    {
+      "id": 14,
+      "title": "Coverage breakdown",
+      "type": "table",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ruleshift-postgres"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 50,
+        "w": 12,
+        "h": 6
+      },
+      "description": "",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ruleshift-postgres"
+          },
+          "rawSql": "\nSELECT status,count(*) AS attempts FROM results r WHERE r.run_id=${run:sqlstring} GROUP BY status ORDER BY status\n",
+          "format": "table",
+          "editorMode": "code",
+          "rawQuery": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "cellOptions": {
+              "type": "auto"
+            },
+            "filterable": true,
+            "minWidth": 65,
+            "inspect": true,
+            "wrapHeaderText": true
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "md"
+      }
+    }
+  ]
+}
